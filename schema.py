@@ -1,39 +1,53 @@
-from models import Department as DepartmentModel
-from models import Employee as EmployeeModel
-from models import Role as RoleModel
-
-import graphene
-from graphene import relay
-from graphene_sqlalchemy import SQLAlchemyConnectionField, SQLAlchemyObjectType
+from graphene import ObjectType, String, Boolean, ID, List, Field, Int
+from airbnb import Api
+import json
+import os
+from collections import namedtuple
 
 
-class Department(SQLAlchemyObjectType):
-    class Meta:
-        model = DepartmentModel
-        interfaces = (relay.Node, )
+def _json_object_hook(d):
+    return namedtuple('X', d.keys())(*d.values())
 
 
-class Employee(SQLAlchemyObjectType):
-    class Meta:
-        model = EmployeeModel
-        interfaces = (relay.Node, )
+def json2obj(data):
+    return json.loads(data, object_hook=_json_object_hook)
 
 
-class Role(SQLAlchemyObjectType):
-    class Meta:
-        model = RoleModel
-        interfaces = (relay.Node, )
+class User(ObjectType):
+    first_name = String()
+    has_profile_pic = Boolean()
+    id = ID()
+    picture_url = String()
+    smart_name = String()
+    thumbnail_url = String()
 
 
-class Query(graphene.ObjectType):
-    node = relay.Node.Field()
-    # Allow only single column sorting
-    all_employees = SQLAlchemyConnectionField(
-        Employee, sort=Employee.sort_argument())
-    # Allows sorting over multiple columns, by default over the primary key
-    all_roles = SQLAlchemyConnectionField(Role)
-    # Disable sorting over this field
-    all_departments = SQLAlchemyConnectionField(Department, sort=None)
+class Listing(ObjectType):
+    id = ID()
+    name = String()
 
 
-schema = graphene.Schema(query=Query, types=[Department, Employee, Role])
+class Review(ObjectType):
+    author = Field(User)
+    author_id = ID()
+    can_be_edited = Boolean()
+    comments = String()
+    created_at = String()
+    id = Int()
+    language = String()
+    listing = Field(Listing)
+    listing_id = ID()
+    recipient = Field(User)
+    recipient_id = ID()
+    response = String()
+    role = String()
+    user_flag = Boolean()
+
+
+class Query(ObjectType):
+    reviews = List(Review, id=Int(required=True))
+
+    def resolve_reviews(self, info, id):
+        api = Api(os.environ.get("AIRBNB_LOGIN"), 
+                  os.environ.get("AIRBNB_PASSWORD"))
+        return json2obj(json.dumps(api.get_reviews(id)["reviews"]))
